@@ -135,7 +135,8 @@ const EventSchema = new Schema<IEvent>(
       type: [String],
       required: true,
       validate: {
-        validator: (v: string[]) => v.length > 0,
+        validator: (v: string[]) =>
+          v.length > 0 && v.every((item) => item.trim().length > 0),
         message: "Agenda must contain at least one item.",
       },
     },
@@ -144,7 +145,8 @@ const EventSchema = new Schema<IEvent>(
       type: [String],
       required: true,
       validate: {
-        validator: (v: string[]) => v.length > 0,
+        validator: (v: string[]) =>
+          v.length > 0 && v.every((item) => item.trim().length > 0),
         message: "Tags must contain at least one item.",
       },
     },
