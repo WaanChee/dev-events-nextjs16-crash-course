@@ -115,7 +115,8 @@ function normalizeTime(time: string): string {
   if (match24) {
     const hours = parseInt(match24[1], 10);
     const minutes = parseInt(match24[2], 10);
-    const seconds = match24[3] !== undefined ? parseInt(match24[3], 10) : undefined;
+    const seconds =
+      match24[3] !== undefined ? parseInt(match24[3], 10) : undefined;
 
     if (
       hours < 0 ||
@@ -227,6 +228,8 @@ EventSchema.pre("save", function () {
 // ─── Model ────────────────────────────────────────────────────────────────────
 
 // Guard against "Cannot overwrite model" errors caused by Next.js hot-reloads.
-export const Event =
+const Event =
   (mongoose.models.Event as Model<IEvent>) ||
   model<IEvent>("Event", EventSchema);
+
+export default Event;
