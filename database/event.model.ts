@@ -29,12 +29,20 @@ export interface IEvent {
 
 /** Converts a title into a URL-friendly slug (lowercase, hyphen-separated). */
 function generateSlug(title: string): string {
-  return title
+  const slug = title
     .toLowerCase()
     .trim()
     .replace(/[^\w\s-]/g, "") // strip special characters
     .replace(/\s+/g, "-") // spaces → hyphens
     .replace(/-+/g, "-"); // collapse consecutive hyphens
+
+  if (!slug) {
+    throw new Error(
+      `Title "${title}" does not contain any URL-safe characters and cannot produce a valid slug.`,
+    );
+  }
+
+  return slug;
 }
 
 /**
@@ -44,14 +52,33 @@ function generateSlug(title: string): string {
  */
 function normalizeDate(date: string): string {
   const trimmed = date.trim();
+  const invalidDateError = new Error(
+    `Invalid date: "${date}". Use YYYY-MM-DD or a recognisable date string.`,
+  );
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const [yearStr, monthStr, dayStr] = trimmed.split("-");
+    const year = parseInt(yearStr, 10);
+    const month = parseInt(monthStr, 10);
+    const day = parseInt(dayStr, 10);
+
+    // Date.UTC months are 0-indexed; if the date overflows (e.g. Feb 31)
+    // the resulting Date will have different year/month/day values.
+    const utc = new Date(Date.UTC(year, month - 1, day));
+    if (
+      utc.getUTCFullYear() !== year ||
+      utc.getUTCMonth() !== month - 1 ||
+      utc.getUTCDate() !== day
+    ) {
+      throw invalidDateError;
+    }
+
+    return trimmed;
+  }
 
   const parsed = new Date(trimmed);
   if (isNaN(parsed.getTime())) {
-    throw new Error(
-      `Invalid date: "${date}". Use YYYY-MM-DD or a recognisable date string.`,
-    );
+    throw invalidDateError;
   }
   return parsed.toISOString().slice(0, 10);
 }
@@ -64,27 +91,46 @@ function normalizeDate(date: string): string {
  */
 function normalizeTime(time: string): string {
   const trimmed = time.trim();
+  const invalidTimeError = new Error(
+    `Invalid time: "${time}". Use HH:MM (24-hour) or H:MM AM/PM.`,
+  );
 
   // 12-hour format: H:MM AM/PM
   const match12 = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
   if (match12) {
     let hours = parseInt(match12[1], 10);
-    const minutes = match12[2];
+    const minutes = parseInt(match12[2], 10);
     const meridiem = match12[3].toUpperCase();
+
+    if (hours < 1 || hours > 12 || minutes < 0 || minutes > 59) {
+      throw invalidTimeError;
+    }
     if (meridiem === "PM" && hours !== 12) hours += 12;
     if (meridiem === "AM" && hours === 12) hours = 0;
-    return `${String(hours).padStart(2, "0")}:${minutes}`;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
   }
 
   // 24-hour format: H:MM or HH:MM or HH:MM:SS
-  const match24 = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  const match24 = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (match24) {
-    return `${String(parseInt(match24[1], 10)).padStart(2, "0")}:${match24[2]}`;
-  }
+    const hours = parseInt(match24[1], 10);
+    const minutes = parseInt(match24[2], 10);
+    const seconds =
+      match24[3] !== undefined ? parseInt(match24[3], 10) : undefined;
 
-  throw new Error(
-    `Invalid time: "${time}". Use HH:MM (24-hour) or H:MM AM/PM.`,
-  );
+    if (
+      hours < 0 ||
+      hours > 23 ||
+      minutes < 0 ||
+      minutes > 59 ||
+      (seconds !== undefined && (seconds < 0 || seconds > 59))
+    ) {
+      throw invalidTimeError;
+    }
+
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  }
+  throw invalidTimeError;
 }
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
@@ -182,6 +228,8 @@ EventSchema.pre("save", function () {
 // ─── Model ────────────────────────────────────────────────────────────────────
 
 // Guard against "Cannot overwrite model" errors caused by Next.js hot-reloads.
-export const Event =
+const Event =
   (mongoose.models.Event as Model<IEvent>) ||
   model<IEvent>("Event", EventSchema);
+
+export default Event;
