@@ -96,136 +96,157 @@ const EventDetailsPage = async ({
   params: Promise<{ slug: string }>;
 }) => {
   const { slug } = await params;
+  console.log(`🔍 Requested slug: "${slug}"`);
 
   try {
     await connectDB();
-  } catch (error) {
-    console.error("❌ Database connection failed in event page:", error);
-    return notFound();
-  }
+    console.log("✅ Database connected");
 
-  const eventDoc = await Event.findOne({ slug }).lean();
+    const eventDoc = await Event.findOne({ slug }).lean();
 
-  if (!eventDoc) {
-    console.warn(`⚠️ Event not found for slug: ${slug}`);
-    return notFound();
-  }
+    if (!eventDoc) {
+      console.warn(`⚠️ Event not found for slug: "${slug}"`);
 
-  const event = eventDoc as any;
-  const eventId = event._id?.toString();
+      // Debug: show all available slugs
+      const allEvents = await Event.find({}, { slug: 1, title: 1 }).lean();
+      const availableSlugs = allEvents.map((e: any) => e.slug);
+      console.log(
+        `📋 Available slugs in database (${availableSlugs.length}):`,
+        availableSlugs,
+      );
+      console.log("📋 Slugs:", availableSlugs.join(", "));
 
-  if (!eventId) {
-    return notFound();
-  }
+      return notFound();
+    }
 
-  const {
-    description,
-    image,
-    overview,
-    date,
-    time,
-    location,
-    mode,
-    agenda,
-    audience,
-    tags,
-    organizer,
-  } = event;
+    console.log(`✅ Event found for slug: "${slug}"`);
+    const event = eventDoc as any;
+    const eventId = event._id?.toString();
 
-  if (!description) return notFound();
+    if (!eventId) {
+      return notFound();
+    }
 
-  const normalizedAgenda = normalizeStringArray(agenda);
-  const normalizedTags = normalizeStringArray(tags);
+    const {
+      description,
+      image,
+      overview,
+      date,
+      time,
+      location,
+      mode,
+      agenda,
+      audience,
+      tags,
+      organizer,
+    } = event;
 
-  const bookings = 10;
+    if (!description) return notFound();
 
-  const similarEvents: IEvent[] = await getSimilarEventsBySlug(slug);
+    const normalizedAgenda = normalizeStringArray(agenda);
+    const normalizedTags = normalizeStringArray(tags);
 
-  console.log("Similar Events:", similarEvents);
+    const bookings = 10;
 
-  return (
-    <section id="event">
-      <div className="header">
-        <h1>Event Description</h1>
-        <p>{description}</p>
-      </div>
+    const similarEvents: IEvent[] = await getSimilarEventsBySlug(slug);
 
-      <div className="details">
-        {/* Left side - Event Content */}
-        <div className="content">
-          <Image
-            src={image}
-            alt="Event Banner"
-            width={800}
-            height={800}
-            className="banner"
-          />
+    console.log("Similar Events:", similarEvents);
 
-          <section>
-            <h2 className="flex-col-gap-2">Overview</h2>
-            <p>{overview}</p>
-          </section>
-
-          <section>
-            <h2 className="flex-col-gap-2">Event Details</h2>
-
-            <EventDetailItem
-              icon="/icons/calendar.svg"
-              alt="Calendar"
-              label={date}
-            />
-            <EventDetailItem icon="/icons/clock.svg" alt="Time" label={time} />
-            <EventDetailItem
-              icon="/icons/pin.svg"
-              alt="Location"
-              label={location}
-            />
-            <EventDetailItem icon="/icons/mode.svg" alt="Mode" label={mode} />
-            <EventDetailItem
-              icon="/icons/audience.svg"
-              alt="Audience"
-              label={audience}
-            />
-          </section>
-
-          <EventAgenda agendaItems={normalizedAgenda} />
-
-          <section className="flex-col-gap-2">
-            <h2>About the Organizer</h2>
-            <p>{organizer}</p>
-          </section>
-
-          <EventTags tags={normalizedTags} />
+    return (
+      <section id="event">
+        <div className="header">
+          <h1>Event Description</h1>
+          <p>{description}</p>
         </div>
 
-        {/* Right side - Booking Form */}
-        <aside className="booking">
-          <div className="signup-card">
-            <h2>Book Your Spot</h2>
-            {bookings > 0 ? (
-              <p className="text-sm">
-                Join {bookings} people who have already booked their spot!
-              </p>
-            ) : (
-              <p className="text-sm">Be the first to book your spot!</p>
-            )}
+        <div className="details">
+          {/* Left side - Event Content */}
+          <div className="content">
+            <Image
+              src={image}
+              alt="Event Banner"
+              width={800}
+              height={800}
+              className="banner"
+            />
 
-            <BookEvent eventId={event._id} slug={event.slug} />
+            <section>
+              <h2 className="flex-col-gap-2">Overview</h2>
+              <p>{overview}</p>
+            </section>
+
+            <section>
+              <h2 className="flex-col-gap-2">Event Details</h2>
+
+              <EventDetailItem
+                icon="/icons/calendar.svg"
+                alt="Calendar"
+                label={date}
+              />
+              <EventDetailItem
+                icon="/icons/clock.svg"
+                alt="Time"
+                label={time}
+              />
+              <EventDetailItem
+                icon="/icons/pin.svg"
+                alt="Location"
+                label={location}
+              />
+              <EventDetailItem icon="/icons/mode.svg" alt="Mode" label={mode} />
+              <EventDetailItem
+                icon="/icons/audience.svg"
+                alt="Audience"
+                label={audience}
+              />
+            </section>
+
+            <EventAgenda agendaItems={normalizedAgenda} />
+
+            <section className="flex-col-gap-2">
+              <h2>About the Organizer</h2>
+              <p>{organizer}</p>
+            </section>
+
+            <EventTags tags={normalizedTags} />
           </div>
-        </aside>
-      </div>
 
-      <div className="flex w-full flex-col gap-4 pt-20">
-        <h2>Similar Events</h2>
-        <div className="events">
-          {similarEvents.length > 0 &&
-            similarEvents.map((similarEvent: IEvent) => (
-              <EventCard key={similarEvent.title} {...similarEvent} />
-            ))}
+          {/* Right side - Booking Form */}
+          <aside className="booking">
+            <div className="signup-card">
+              <h2>Book Your Spot</h2>
+              {bookings > 0 ? (
+                <p className="text-sm">
+                  Join {bookings} people who have already booked their spot!
+                </p>
+              ) : (
+                <p className="text-sm">Be the first to book your spot!</p>
+              )}
+
+              <BookEvent eventId={event._id} slug={event.slug} />
+            </div>
+          </aside>
         </div>
-      </div>
-    </section>
-  );
+
+        <div className="flex w-full flex-col gap-4 pt-20">
+          <h2>Similar Events</h2>
+          <div className="events">
+            {similarEvents.length > 0 &&
+              similarEvents.map((similarEvent: IEvent) => (
+                <EventCard key={similarEvent.title} {...similarEvent} />
+              ))}
+          </div>
+        </div>
+      </section>
+    );
+  } catch (error) {
+    console.error("❌ Error fetching event:", error);
+    console.error(
+      "Error details:",
+      error instanceof Error ? error.message : String(error),
+    );
+    return notFound();
+  }
 };
 
 export default EventDetailsPage;
