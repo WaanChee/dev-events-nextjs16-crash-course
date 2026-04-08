@@ -4,7 +4,6 @@ import BookEvent from "@/components/BookEvent";
 import { getSimilarEventsBySlug } from "@/lib/actions/event.actions";
 import { IEvent, Event } from "@/database";
 import EventCard from "@/components/EventCard";
-import { cacheLife } from "next/cache";
 import connectDB from "@/lib/mongodb";
 
 export const dynamicParams = true; // Enable on-demand route generation
@@ -96,8 +95,6 @@ const EventDetailsPage = async ({
 }: {
   params: Promise<{ slug: string }>;
 }) => {
-  "use cache";
-  cacheLife(60); // Cache for 1 minute (60 seconds)
   const { slug } = await params;
 
   await connectDB();

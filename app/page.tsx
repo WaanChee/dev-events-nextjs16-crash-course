@@ -1,14 +1,13 @@
 import ExploreBtn from "@/components/ExploreBtn";
 import EventCard from "@/components/EventCard";
 import { IEvent } from "@/database";
-import { cacheLife } from "next/cache";
 //import { events } from "@/lib/constants";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 
+export const revalidate = 60; // ISR: Cache for 1 minute (60 seconds)
+
 const Page = async () => {
-  "use cache";
-  cacheLife(60); // Cache for 1 minute (60 seconds)
   const response = await fetch(`${BASE_URL}/api/events`);
   const { events } = await response.json();
 
