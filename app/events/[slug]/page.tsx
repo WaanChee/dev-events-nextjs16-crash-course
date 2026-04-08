@@ -2,11 +2,10 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import BookEvent from "@/components/BookEvent";
 import { getSimilarEventsBySlug } from "@/lib/actions/event.actions";
-import { IEvent } from "@/database";
+import { IEvent, Event } from "@/database";
 import EventCard from "@/components/EventCard";
 import { cacheLife } from "next/cache";
-
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
+import connectDB from "@/lib/mongodb";
 
 const EventDetailItem = ({
   icon,
@@ -98,20 +97,15 @@ const EventDetailsPage = async ({
   cacheLife("hours");
   const { slug } = await params;
 
-  const request = await fetch(`${BASE_URL}/api/events/${slug}`);
+  await connectDB();
+  const eventDoc = await Event.findOne({ slug }).lean();
 
-  if (!request.ok) {
+  if (!eventDoc) {
     return notFound();
   }
 
-  const data = await request.json();
-
-  if (!data.event) {
-    return notFound();
-  }
-
-  const event = data.event;
-  const eventId = event.id ?? event._id?.toString();
+  const event = eventDoc as any;
+  const eventId = event._id?.toString();
 
   if (!eventId) {
     return notFound();
@@ -129,7 +123,7 @@ const EventDetailsPage = async ({
     audience,
     tags,
     organizer,
-  } = data.event;
+  } = event;
 
   if (!description) return notFound();
 
