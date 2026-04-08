@@ -222,3 +222,11 @@ const EventDetailsPage = async ({
 };
 
 export default EventDetailsPage;
+
+export async function generateStaticParams() {
+  await connectDB();
+  const events = await Event.find({}, { slug: 1 }).lean();
+  return events.map((event) => ({
+    slug: event.slug,
+  }));
+}
