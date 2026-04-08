@@ -224,9 +224,24 @@ const EventDetailsPage = async ({
 export default EventDetailsPage;
 
 export async function generateStaticParams() {
-  await connectDB();
-  const events = await Event.find({}, { slug: 1 }).lean();
-  return events.map((event) => ({
-    slug: event.slug,
-  }));
+  try {
+    await connectDB();
+    const events = await Event.find({}, { slug: 1 }).lean();
+
+    if (!events || events.length === 0) {
+      console.warn(
+        "⚠️ No events found in database during generateStaticParams",
+      );
+      return [];
+    }
+
+    console.log(`✅ Generated static params for ${events.length} events`);
+    return events.map((event) => ({
+      slug: event.slug,
+    }));
+  } catch (error) {
+    console.error("❌ generateStaticParams failed:", error);
+    // Return empty array - routes will be generated on-demand with dynamicParams = true
+    return [];
+  }
 }
