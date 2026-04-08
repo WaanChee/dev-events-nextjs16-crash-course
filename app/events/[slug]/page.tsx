@@ -7,6 +7,8 @@ import EventCard from "@/components/EventCard";
 import { cacheLife } from "next/cache";
 import connectDB from "@/lib/mongodb";
 
+export const dynamicParams = true;
+
 const EventDetailItem = ({
   icon,
   alt,
