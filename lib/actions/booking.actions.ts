@@ -1,21 +1,23 @@
 "use server";
 
-import { Booking } from "@/database/booking.model";
+import { Booking, Event } from "@/database";
 
 import connectDB from "@/lib/mongodb";
 
 export const createBooking = async ({
-  eventId,
   slug,
   email,
 }: {
-  eventId: string;
   slug: string;
   email: string;
 }) => {
   try {
     await connectDB();
-    await Booking.create({ eventId, slug, email });
+    const event = await Event.findOne({ slug });
+    if (!event) {
+      return { success: false, error: "Event not found" };
+    }
+    await Booking.create({ eventId: event._id, email });
 
     return { success: true };
   } catch (e) {
