@@ -8,8 +8,21 @@ const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 export const revalidate = 60; // ISR: Cache for 1 minute (60 seconds)
 
 const Page = async () => {
+  if (!BASE_URL) {
+    console.error("❌ NEXT_PUBLIC_BASE_URL is not set!");
+    return <div>Error: BASE_URL not configured</div>;
+  }
+
+  console.log(`📡 Fetching events from: ${BASE_URL}/api/events`);
   const response = await fetch(`${BASE_URL}/api/events`);
+
+  if (!response.ok) {
+    console.error(`❌ Failed to fetch events: ${response.status}`);
+    return <div>Error loading events</div>;
+  }
+
   const { events } = await response.json();
+  console.log(`✅ Loaded ${events.length} events`);
 
   return (
     <section>

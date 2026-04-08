@@ -242,12 +242,18 @@ export async function generateStaticParams() {
       return [];
     }
 
+    const slugs = events.map((event) => event.slug);
     console.log(`✅ Generated static params for ${events.length} events`);
+    console.log("📝 Event slugs:", slugs);
     return events.map((event) => ({
       slug: event.slug,
     }));
   } catch (error) {
     console.error("❌ generateStaticParams failed:", error);
+    console.error(
+      "Error details:",
+      error instanceof Error ? error.message : String(error),
+    );
     // Return empty array - routes will be generated on-demand with dynamicParams = true
     return [];
   }
