@@ -7,7 +7,8 @@ import EventCard from "@/components/EventCard";
 import { cacheLife } from "next/cache";
 import connectDB from "@/lib/mongodb";
 
-export const dynamicParams = true;
+export const dynamicParams = true; // Enable on-demand route generation
+export const revalidate = 60; // Revalidate cache every 60 seconds
 
 const EventDetailItem = ({
   icon,
@@ -96,7 +97,7 @@ const EventDetailsPage = async ({
   params: Promise<{ slug: string }>;
 }) => {
   "use cache";
-  cacheLife("hours");
+  cacheLife(60); // Cache for 1 minute (60 seconds)
   const { slug } = await params;
 
   await connectDB();
