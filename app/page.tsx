@@ -1,28 +1,13 @@
 import ExploreBtn from "@/components/ExploreBtn";
 import EventCard from "@/components/EventCard";
-import { IEvent } from "@/database";
-//import { events } from "@/lib/constants";
+import { IEvent, Event } from "@/database";
+import connectDB from "@/lib/mongodb";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
-
-export const revalidate = 60; // ISR: Cache for 1 minute (60 seconds)
+export const revalidate = 60; // ISR: revalidate every 60 seconds
 
 const Page = async () => {
-  if (!BASE_URL) {
-    console.error("❌ NEXT_PUBLIC_BASE_URL is not set!");
-    return <div>Error: BASE_URL not configured</div>;
-  }
-
-  console.log(`📡 Fetching events from: ${BASE_URL}/api/events`);
-  const response = await fetch(`${BASE_URL}/api/events`);
-
-  if (!response.ok) {
-    console.error(`❌ Failed to fetch events: ${response.status}`);
-    return <div>Error loading events</div>;
-  }
-
-  const { events } = await response.json();
-  console.log(`✅ Loaded ${events.length} events`);
+  await connectDB();
+  const events: IEvent[] = await Event.find().sort({ createdAt: -1 }).lean();
 
   return (
     <section>
@@ -35,7 +20,7 @@ const Page = async () => {
 
       <ExploreBtn />
 
-      <div className="mt-20 space-y-7">
+      <div id="events" className="mt-20 space-y-7">
         <h3>Featured Events</h3>
 
         <ul className="events list-none">

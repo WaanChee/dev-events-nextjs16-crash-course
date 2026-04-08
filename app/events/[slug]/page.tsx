@@ -6,8 +6,10 @@ import { IEvent, Event } from "@/database";
 import EventCard from "@/components/EventCard";
 import connectDB from "@/lib/mongodb";
 
-export const dynamicParams = true; // Enable on-demand route generation
-export const revalidate = 60; // Revalidate cache every 60 seconds
+export const dynamicParams = true;
+export const revalidate = 60;
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 const EventDetailItem = ({
   icon,
@@ -44,6 +46,9 @@ const EventTags = ({ tags }: { tags: string[] }) => (
     ))}
   </div>
 );
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 const normalizeStringArray = (value: unknown): string[] => {
   const sanitize = (item: string) => item.trim().replace(/^["']|["']$/g, "");
 
@@ -55,7 +60,6 @@ const normalizeStringArray = (value: unknown): string[] => {
     ) {
       return normalizeStringArray(value[0]);
     }
-
     return value
       .filter((item): item is string => typeof item === "string")
       .map(sanitize)
@@ -76,7 +80,7 @@ const normalizeStringArray = (value: unknown): string[] => {
             .filter(Boolean);
         }
       } catch {
-        // Fall back to comma-separated parsing below.
+        // fall through to comma-separated
       }
     }
 
@@ -90,192 +94,190 @@ const normalizeStringArray = (value: unknown): string[] => {
   return [];
 };
 
+// ─── Data fetching (no JSX) ───────────────────────────────────────────────────
+
+type EventData = {
+  eventId: string;
+  slug: string;
+  description: string;
+  image: string;
+  overview: string;
+  date: string;
+  time: string;
+  location: string;
+  mode: string;
+  agenda: string[];
+  audience: string;
+  tags: string[];
+  organizer: string;
+  similarEvents: IEvent[];
+};
+
+async function getEventData(slug: string): Promise<EventData | null> {
+  try {
+    await connectDB();
+
+    const eventDoc = await Event.findOne({ slug }).lean();
+    if (!eventDoc) return null;
+
+    const event = eventDoc as IEvent & { _id: { toString(): string } };
+    if (!event.description) return null;
+
+    const similarEvents: IEvent[] = await getSimilarEventsBySlug(slug);
+
+    return {
+      eventId: event._id.toString(),
+      slug: event.slug,
+      description: event.description,
+      image: event.image,
+      overview: event.overview,
+      date: event.date,
+      time: event.time,
+      location: event.location,
+      mode: event.mode,
+      agenda: normalizeStringArray(event.agenda),
+      audience: event.audience,
+      tags: normalizeStringArray(event.tags),
+      organizer: event.organizer,
+      similarEvents,
+    };
+  } catch (error) {
+    console.error(
+      "❌ Error fetching event:",
+      error instanceof Error ? error.message : String(error),
+    );
+    return null;
+  }
+}
+
+// ─── Page component (JSX lives here, completely outside try/catch) ────────────
+
 const EventDetailsPage = async ({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) => {
   const { slug } = await params;
-  console.log(`🔍 Requested slug: "${slug}"`);
 
-  try {
-    await connectDB();
-    console.log("✅ Database connected");
+  const data = await getEventData(slug);
+  if (!data) return notFound();
 
-    const eventDoc = await Event.findOne({ slug }).lean();
+  const {
+    eventId,
+    description,
+    image,
+    overview,
+    date,
+    time,
+    location,
+    mode,
+    agenda,
+    audience,
+    tags,
+    organizer,
+    similarEvents,
+  } = data;
 
-    if (!eventDoc) {
-      console.warn(`⚠️ Event not found for slug: "${slug}"`);
+  const bookings = 10;
 
-      // Debug: show all available slugs
-      const allEvents = await Event.find({}, { slug: 1, title: 1 }).lean();
-      const availableSlugs = allEvents.map((e: any) => e.slug);
-      console.log(
-        `📋 Available slugs in database (${availableSlugs.length}):`,
-        availableSlugs,
-      );
-      console.log("📋 Slugs:", availableSlugs.join(", "));
+  return (
+    <section id="event">
+      <div className="header">
+        <h1>Event Description</h1>
+        <p>{description}</p>
+      </div>
 
-      return notFound();
-    }
+      <div className="details">
+        {/* Left side - Event Content */}
+        <div className="content">
+          <Image
+            src={image}
+            alt="Event Banner"
+            width={800}
+            height={800}
+            className="banner"
+          />
 
-    console.log(`✅ Event found for slug: "${slug}"`);
-    const event = eventDoc as any;
-    const eventId = event._id?.toString();
+          <section>
+            <h2>Overview</h2>
+            <p>{overview}</p>
+          </section>
 
-    if (!eventId) {
-      return notFound();
-    }
-
-    const {
-      description,
-      image,
-      overview,
-      date,
-      time,
-      location,
-      mode,
-      agenda,
-      audience,
-      tags,
-      organizer,
-    } = event;
-
-    if (!description) return notFound();
-
-    const normalizedAgenda = normalizeStringArray(agenda);
-    const normalizedTags = normalizeStringArray(tags);
-
-    const bookings = 10;
-
-    const similarEvents: IEvent[] = await getSimilarEventsBySlug(slug);
-
-    console.log("Similar Events:", similarEvents);
-
-    return (
-      <section id="event">
-        <div className="header">
-          <h1>Event Description</h1>
-          <p>{description}</p>
-        </div>
-
-        <div className="details">
-          {/* Left side - Event Content */}
-          <div className="content">
-            <Image
-              src={image}
-              alt="Event Banner"
-              width={800}
-              height={800}
-              className="banner"
+          <section>
+            <h2>Event Details</h2>
+            <EventDetailItem
+              icon="/icons/calendar.svg"
+              alt="Calendar"
+              label={date}
             />
+            <EventDetailItem icon="/icons/clock.svg" alt="Time" label={time} />
+            <EventDetailItem
+              icon="/icons/pin.svg"
+              alt="Location"
+              label={location}
+            />
+            <EventDetailItem icon="/icons/mode.svg" alt="Mode" label={mode} />
+            <EventDetailItem
+              icon="/icons/audience.svg"
+              alt="Audience"
+              label={audience}
+            />
+          </section>
 
-            <section>
-              <h2 className="flex-col-gap-2">Overview</h2>
-              <p>{overview}</p>
-            </section>
+          <EventAgenda agendaItems={agenda} />
 
-            <section>
-              <h2 className="flex-col-gap-2">Event Details</h2>
+          <section className="flex-col-gap-2">
+            <h2>About the Organizer</h2>
+            <p>{organizer}</p>
+          </section>
 
-              <EventDetailItem
-                icon="/icons/calendar.svg"
-                alt="Calendar"
-                label={date}
-              />
-              <EventDetailItem
-                icon="/icons/clock.svg"
-                alt="Time"
-                label={time}
-              />
-              <EventDetailItem
-                icon="/icons/pin.svg"
-                alt="Location"
-                label={location}
-              />
-              <EventDetailItem icon="/icons/mode.svg" alt="Mode" label={mode} />
-              <EventDetailItem
-                icon="/icons/audience.svg"
-                alt="Audience"
-                label={audience}
-              />
-            </section>
-
-            <EventAgenda agendaItems={normalizedAgenda} />
-
-            <section className="flex-col-gap-2">
-              <h2>About the Organizer</h2>
-              <p>{organizer}</p>
-            </section>
-
-            <EventTags tags={normalizedTags} />
-          </div>
-
-          {/* Right side - Booking Form */}
-          <aside className="booking">
-            <div className="signup-card">
-              <h2>Book Your Spot</h2>
-              {bookings > 0 ? (
-                <p className="text-sm">
-                  Join {bookings} people who have already booked their spot!
-                </p>
-              ) : (
-                <p className="text-sm">Be the first to book your spot!</p>
-              )}
-
-              <BookEvent eventId={event._id} slug={event.slug} />
-            </div>
-          </aside>
+          <EventTags tags={tags} />
         </div>
 
-        <div className="flex w-full flex-col gap-4 pt-20">
-          <h2>Similar Events</h2>
-          <div className="events">
-            {similarEvents.length > 0 &&
-              similarEvents.map((similarEvent: IEvent) => (
-                <EventCard key={similarEvent.title} {...similarEvent} />
-              ))}
+        {/* Right side - Booking Form */}
+        <aside className="booking">
+          <div className="signup-card">
+            <h2>Book Your Spot</h2>
+            {bookings > 0 ? (
+              <p className="text-sm">
+                Join {bookings} people who have already booked their spot!
+              </p>
+            ) : (
+              <p className="text-sm">Be the first to book your spot!</p>
+            )}
+            <BookEvent eventId={eventId} slug={slug} />
           </div>
+        </aside>
+      </div>
+
+      <div className="flex w-full flex-col gap-4 pt-20">
+        <h2>Similar Events</h2>
+        <div className="events">
+          {similarEvents.length > 0 &&
+            similarEvents.map((similarEvent: IEvent) => (
+              <EventCard key={similarEvent.title} {...similarEvent} />
+            ))}
         </div>
-      </section>
-    );
-  } catch (error) {
-    console.error("❌ Error fetching event:", error);
-    console.error(
-      "Error details:",
-      error instanceof Error ? error.message : String(error),
-    );
-    return notFound();
-  }
+      </div>
+    </section>
+  );
 };
 
 export default EventDetailsPage;
+
+// ─── Static params ────────────────────────────────────────────────────────────
 
 export async function generateStaticParams() {
   try {
     await connectDB();
     const events = await Event.find({}, { slug: 1 }).lean();
-
-    if (!events || events.length === 0) {
-      console.warn(
-        "⚠️ No events found in database during generateStaticParams",
-      );
-      return [];
-    }
-
-    const slugs = events.map((event) => event.slug);
-    console.log(`✅ Generated static params for ${events.length} events`);
-    console.log("📝 Event slugs:", slugs);
-    return events.map((event) => ({
-      slug: event.slug,
-    }));
+    if (!events || events.length === 0) return [];
+    return events.map((event) => ({ slug: event.slug }));
   } catch (error) {
-    console.error("❌ generateStaticParams failed:", error);
     console.error(
-      "Error details:",
+      "❌ generateStaticParams failed:",
       error instanceof Error ? error.message : String(error),
     );
-    // Return empty array - routes will be generated on-demand with dynamicParams = true
     return [];
   }
 }
