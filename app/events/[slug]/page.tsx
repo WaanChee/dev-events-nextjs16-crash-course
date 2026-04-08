@@ -4,6 +4,7 @@ import BookEvent from "@/components/BookEvent";
 import { getSimilarEventsBySlug } from "@/lib/actions/event.actions";
 import { IEvent } from "@/database";
 import EventCard from "@/components/EventCard";
+import { cacheLife } from "next/cache";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 
@@ -42,13 +43,61 @@ const EventTags = ({ tags }: { tags: string[] }) => (
     ))}
   </div>
 );
+const normalizeStringArray = (value: unknown): string[] => {
+  const sanitize = (item: string) => item.trim().replace(/^["']|["']$/g, "");
+
+  if (Array.isArray(value)) {
+    if (
+      value.length === 1 &&
+      typeof value[0] === "string" &&
+      value[0].trim().startsWith("[")
+    ) {
+      return normalizeStringArray(value[0]);
+    }
+
+    return value
+      .filter((item): item is string => typeof item === "string")
+      .map(sanitize)
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .filter((item): item is string => typeof item === "string")
+            .map(sanitize)
+            .filter(Boolean);
+        }
+      } catch {
+        // Fall back to comma-separated parsing below.
+      }
+    }
+
+    if (trimmed.includes(",")) {
+      return trimmed.split(",").map(sanitize).filter(Boolean);
+    }
+
+    return [sanitize(trimmed)].filter(Boolean);
+  }
+
+  return [];
+};
 
 const EventDetailsPage = async ({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) => {
+  "use cache";
+  cacheLife("hours");
   const { slug } = await params;
+
   const request = await fetch(`${BASE_URL}/api/events/${slug}`);
 
   if (!request.ok) {
@@ -58,6 +107,13 @@ const EventDetailsPage = async ({
   const data = await request.json();
 
   if (!data.event) {
+    return notFound();
+  }
+
+  const event = data.event;
+  const eventId = event.id ?? event._id?.toString();
+
+  if (!eventId) {
     return notFound();
   }
 
@@ -76,6 +132,9 @@ const EventDetailsPage = async ({
   } = data.event;
 
   if (!description) return notFound();
+
+  const normalizedAgenda = normalizeStringArray(agenda);
+  const normalizedTags = normalizeStringArray(tags);
 
   const bookings = 10;
 
@@ -128,14 +187,14 @@ const EventDetailsPage = async ({
             />
           </section>
 
-          <EventAgenda agendaItems={agenda} />
+          <EventAgenda agendaItems={normalizedAgenda} />
 
           <section className="flex-col-gap-2">
             <h2>About the Organizer</h2>
             <p>{organizer}</p>
           </section>
 
-          <EventTags tags={tags} />
+          <EventTags tags={normalizedTags} />
         </div>
 
         {/* Right side - Booking Form */}
@@ -150,7 +209,7 @@ const EventDetailsPage = async ({
               <p className="text-sm">Be the first to book your spot!</p>
             )}
 
-            <BookEvent />
+            <BookEvent eventId={event._id} slug={event.slug} />
           </div>
         </aside>
       </div>

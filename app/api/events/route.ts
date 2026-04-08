@@ -2,6 +2,46 @@ import connectDB from "@/lib/mongodb";
 import { NextRequest, NextResponse } from "next/server";
 import { v2 as cloudinary } from "cloudinary";
 import Event from "@/database/event.model";
+const parseFormStringArray = (
+  value: FormDataEntryValue | null,
+  fieldName: "tags" | "agenda",
+): string[] => {
+  if (typeof value !== "string") {
+    throw new Error(`${fieldName} must be provided as text.`);
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  const sanitize = (item: string) => item.trim().replace(/^["']|["']$/g, "");
+  const toCleanArray = (items: unknown[]): string[] =>
+    items
+      .filter((item): item is string => typeof item === "string")
+      .map(sanitize)
+      .filter(Boolean);
+
+  if (trimmed.startsWith("[")) {
+    const parsed = JSON.parse(trimmed);
+
+    if (Array.isArray(parsed)) {
+      return toCleanArray(parsed);
+    }
+
+    if (typeof parsed === "string") {
+      return parseFormStringArray(parsed, fieldName);
+    }
+
+    return [];
+  }
+
+  if (trimmed.includes(",")) {
+    return trimmed.split(",").map(sanitize).filter(Boolean);
+  }
+
+  return [sanitize(trimmed)].filter(Boolean);
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +53,7 @@ export async function POST(req: NextRequest) {
 
     try {
       event = Object.fromEntries(formData.entries());
-    } catch (e) {
+    } catch {
       return NextResponse.json(
         { message: "Invalid JSON data format" },
         { status: 400 },
@@ -28,8 +68,8 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
 
-    let tags = JSON.parse(formData.get("tags") as string);
-    let agenda = JSON.parse(formData.get("agenda") as string);
+    const tags = parseFormStringArray(formData.get("tags"), "tags");
+    const agenda = parseFormStringArray(formData.get("agenda"), "agenda");
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
