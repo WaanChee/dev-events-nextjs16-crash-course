@@ -97,10 +97,17 @@ const EventDetailsPage = async ({
 }) => {
   const { slug } = await params;
 
-  await connectDB();
+  try {
+    await connectDB();
+  } catch (error) {
+    console.error("❌ Database connection failed in event page:", error);
+    return notFound();
+  }
+
   const eventDoc = await Event.findOne({ slug }).lean();
 
   if (!eventDoc) {
+    console.warn(`⚠️ Event not found for slug: ${slug}`);
     return notFound();
   }
 
