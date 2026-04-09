@@ -29,7 +29,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={cn("font-sans", geist.variable)}>
+      {/*
+        suppressHydrationWarning is needed here because PostHog's toolbar
+        injects inline styles (padding-right, overflow) onto <body> on the
+        client after SSR, causing a mismatch React would otherwise error on.
+        This only suppresses warnings one level deep — it does not affect children.
+      */}
       <body
+        suppressHydrationWarning
         className={`${schibstedGrotesk.variable} ${martianMono.variable} min-h-screen antialiased`}
       >
         <Navbar />

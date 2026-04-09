@@ -5,9 +5,7 @@ import { getSimilarEventsBySlug } from "@/lib/actions/event.actions";
 import { IEvent, Event } from "@/database";
 import EventCard from "@/components/EventCard";
 import connectDB from "@/lib/mongodb";
-
-export const dynamicParams = true;
-export const revalidate = 60;
+import { cacheLife } from "next/dist/server/use-cache/cache-life";
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -94,7 +92,11 @@ const normalizeStringArray = (value: unknown): string[] => {
   return [];
 };
 
-// ─── Data fetching (no JSX) ───────────────────────────────────────────────────
+// ─── Cached data fetch ────────────────────────────────────────────────────────
+// Cached per unique slug. cacheLife("hours") means:
+//   - Serve from cache for up to 1 hour without revalidating
+//   - Revalidate in the background after that
+//   - Cache expires fully after 1 day
 
 type EventData = {
   eventId: string;
@@ -114,11 +116,20 @@ type EventData = {
 };
 
 async function getEventData(slug: string): Promise<EventData | null> {
+  "use cache";
+  cacheLife("hours");
+
   try {
     await connectDB();
 
     const eventDoc = await Event.findOne({ slug }).lean();
-    if (!eventDoc) return null;
+
+    if (!eventDoc) {
+      console.warn(`⚠️ [Cache MISS] Event not found for slug: "${slug}"`);
+      return null;
+    }
+
+    console.log(`✅ [Cache MISS] Fetched event from DB: "${slug}"`);
 
     const event = eventDoc as IEvent & { _id: { toString(): string } };
     if (!event.description) return null;
@@ -143,14 +154,15 @@ async function getEventData(slug: string): Promise<EventData | null> {
     };
   } catch (error) {
     console.error(
-      "❌ Error fetching event:",
+      "❌ getEventData failed for slug:",
+      slug,
       error instanceof Error ? error.message : String(error),
     );
     return null;
   }
 }
 
-// ─── Page component (JSX lives here, completely outside try/catch) ────────────
+// ─── Page component ───────────────────────────────────────────────────────────
 
 const EventDetailsPage = async ({
   params,
@@ -188,7 +200,6 @@ const EventDetailsPage = async ({
       </div>
 
       <div className="details">
-        {/* Left side - Event Content */}
         <div className="content">
           <Image
             src={image}
@@ -234,7 +245,6 @@ const EventDetailsPage = async ({
           <EventTags tags={tags} />
         </div>
 
-        {/* Right side - Booking Form */}
         <aside className="booking">
           <div className="signup-card">
             <h2>Book Your Spot</h2>
@@ -272,6 +282,9 @@ export async function generateStaticParams() {
     await connectDB();
     const events = await Event.find({}, { slug: 1 }).lean();
     if (!events || events.length === 0) return [];
+    console.log(
+      `✅ generateStaticParams: pre-built ${events.length} event routes`,
+    );
     return events.map((event) => ({ slug: event.slug }));
   } catch (error) {
     console.error(

@@ -2,12 +2,34 @@ import ExploreBtn from "@/components/ExploreBtn";
 import EventCard from "@/components/EventCard";
 import { IEvent, Event } from "@/database";
 import connectDB from "@/lib/mongodb";
+import { cacheLife } from "next/dist/server/use-cache/cache-life";
 
-export const revalidate = 60; // ISR: revalidate every 60 seconds
+// ─── Cached data fetch ────────────────────────────────────────────────────────
+// cacheLife("hours") = stale for 1 hour, revalidates in background, expires in 1 day.
+// The cache is shared across all users — only the first request hits MongoDB.
+
+async function getAllEvents(): Promise<IEvent[]> {
+  "use cache";
+  cacheLife("hours");
+
+  try {
+    await connectDB();
+    const events = await Event.find().sort({ createdAt: -1 }).lean();
+    console.log(`✅ [Cache MISS] Fetched ${events.length} events from DB`);
+    return events as IEvent[];
+  } catch (error) {
+    console.error(
+      "❌ getAllEvents failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+    return [];
+  }
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 const Page = async () => {
-  await connectDB();
-  const events: IEvent[] = await Event.find().sort({ createdAt: -1 }).lean();
+  const events = await getAllEvents();
 
   return (
     <section>
@@ -24,13 +46,15 @@ const Page = async () => {
         <h3>Featured Events</h3>
 
         <ul className="events list-none">
-          {events &&
-            events.length > 0 &&
+          {events.length > 0 ? (
             events.map((event: IEvent) => (
               <li key={event.title}>
                 <EventCard {...event} />
               </li>
-            ))}
+            ))
+          ) : (
+            <p className="text-light-200">No events found.</p>
+          )}
         </ul>
       </div>
     </section>
