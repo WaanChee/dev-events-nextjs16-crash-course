@@ -5,12 +5,13 @@ import connectDB from "@/lib/mongodb";
 import { cacheLife } from "next/dist/server/use-cache/cache-life";
 
 // ─── Cached data fetch ────────────────────────────────────────────────────────
-// cacheLife("hours") = stale for 1 hour, revalidates in background, expires in 1 day.
-// The cache is shared across all users — only the first request hits MongoDB.
+// stale: 60s  — serve from cache for up to 60 seconds without hitting the DB
+// revalidate: 60s — revalidate in the background after 60 seconds
+// expire: 3600s — fully expire the cache entry after 1 hour
 
 async function getAllEvents(): Promise<IEvent[]> {
   "use cache";
-  cacheLife("hours");
+  cacheLife({ stale: 60, revalidate: 60, expire: 3600 });
 
   try {
     await connectDB();

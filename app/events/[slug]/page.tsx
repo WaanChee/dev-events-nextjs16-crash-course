@@ -93,10 +93,9 @@ const normalizeStringArray = (value: unknown): string[] => {
 };
 
 // ─── Cached data fetch ────────────────────────────────────────────────────────
-// Cached per unique slug. cacheLife("hours") means:
-//   - Serve from cache for up to 1 hour without revalidating
-//   - Revalidate in the background after that
-//   - Cache expires fully after 1 day
+// stale: 60s  — serve from cache for up to 60 seconds without hitting the DB
+// revalidate: 60s — revalidate in the background after 60 seconds
+// expire: 3600s — fully expire the cache entry after 1 hour
 
 type EventData = {
   eventId: string;
@@ -117,7 +116,7 @@ type EventData = {
 
 async function getEventData(slug: string): Promise<EventData | null> {
   "use cache";
-  cacheLife("hours");
+  cacheLife({ stale: 60, revalidate: 60, expire: 3600 });
 
   try {
     await connectDB();

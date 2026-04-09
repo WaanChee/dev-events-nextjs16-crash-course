@@ -3,11 +3,13 @@
 import Event from "@/database/event.model";
 import connectDB from "@/lib/mongodb";
 import { IEvent } from "@/database";
+import { cacheLife } from "next/dist/server/use-cache/cache-life";
 
 export const getSimilarEventsBySlug = async (
   slug: string,
 ): Promise<IEvent[]> => {
   "use cache";
+  cacheLife({ stale: 60, revalidate: 60, expire: 3600 });
 
   try {
     await connectDB();
